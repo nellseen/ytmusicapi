@@ -1,0 +1,6 @@
+{
+  "name": "Sonora Music",
+  "description": "Stream high-fidelity music, search songs, artists, albums, and lyrics with an iOS-inspired glassmorphism experience powered by YouTube Music.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
