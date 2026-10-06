@@ -13,30 +13,29 @@ export const AlbumView: React.FC<AlbumViewProps> = ({ albumId, setActiveView }) 
   const { playAlbum, playSong, addToQueue, currentSong, isPlaying } = usePlayer();
   const [album, setAlbum] = useState<Album | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; retryable: boolean } | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadAlbumData = () => {
     setLoading(true);
-    setError(null);
+    setErrorInfo(null);
 
     fetchAlbum(albumId)
       .then((data) => {
-        if (isMounted) {
-          setAlbum(data);
-          setLoading(false);
-        }
+        setAlbum(data);
+        setLoading(false);
       })
-      .catch((err) => {
-        if (isMounted) {
-          setError(err.message || 'Failed to load album');
-          setLoading(false);
-        }
+      .catch((err: any) => {
+        setLoading(false);
+        const isUpstream = err?.retryable !== undefined ? err.retryable : true;
+        setErrorInfo({
+          message: err?.message || 'Failed to load album',
+          retryable: isUpstream
+        });
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    loadAlbumData();
   }, [albumId]);
 
   if (loading) {
@@ -48,16 +47,26 @@ export const AlbumView: React.FC<AlbumViewProps> = ({ albumId, setActiveView }) 
     );
   }
 
-  if (error || !album) {
+  if (errorInfo || !album) {
     return (
       <div className="py-24 text-center max-w-md mx-auto text-neutral-400 space-y-4">
-        <p className="text-sm text-red-400">{error || 'Album not found'}</p>
-        <button
-          onClick={() => setActiveView({ type: 'home' })}
-          className="px-4 py-2 rounded-xl glass-button text-xs font-semibold text-white"
-        >
-          Return Home
-        </button>
+        <p className="text-sm text-red-400">{errorInfo?.message || 'Album not found'}</p>
+        <div className="flex items-center justify-center gap-3">
+          {errorInfo?.retryable && (
+            <button
+              onClick={loadAlbumData}
+              className="px-4 py-2 rounded-xl glass-button text-xs font-semibold text-white"
+            >
+              Retry
+            </button>
+          )}
+          <button
+            onClick={() => setActiveView({ type: 'home' })}
+            className="px-4 py-2 rounded-xl glass-panel text-xs font-medium text-neutral-400 hover:text-white"
+          >
+            Return Home
+          </button>
+        </div>
       </div>
     );
   }

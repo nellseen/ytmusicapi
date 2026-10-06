@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Play, Shuffle, Music, Disc, Users, Plus, Loader2, ArrowLeft } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Play, Shuffle, Music, Disc, Users, Plus, Loader2, ArrowLeft, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import { Artist, ActiveView, Track } from '../types';
-import { fetchArtist, fetchArtistSongs } from '../services/api';
+import { fetchArtist, fetchArtistSongs, ApiError, PaginatedArtistSongs } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 
 interface ArtistViewProps {
@@ -13,31 +13,58 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
   const { playSong, addToQueue } = usePlayer();
   const [artist, setArtist] = useState<Artist | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; retryable: boolean } | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
+  // All Songs catalogue state
+  const [allSongs, setAllSongs] = useState<Track[]>([]);
+  const [loadingAllSongs, setLoadingAllSongs] = useState<boolean>(false);
+  const [allSongsError, setAllSongsError] = useState<string | null>(null);
+  const [showAllSongs, setShowAllSongs] = useState<boolean>(false);
+  const [visibleCount, setVisibleCount] = useState<number>(30);
+
+  const loadArtistData = useCallback(() => {
     setLoading(true);
-    setError(null);
+    setErrorInfo(null);
 
     fetchArtist(artistId)
       .then((data) => {
-        if (isMounted) {
-          setArtist(data);
-          setLoading(false);
-        }
+        setArtist(data);
+        setLoading(false);
       })
-      .catch((err) => {
-        if (isMounted) {
-          setError(err.message || 'Failed to load artist');
-          setLoading(false);
-        }
+      .catch((err: any) => {
+        setLoading(false);
+        const isUpstream = err instanceof ApiError ? err.retryable : true;
+        const msg = err instanceof ApiError && (err.code === 'UPSTREAM_DNS_ERROR' || err.code === 'UPSTREAM_UNAVAILABLE')
+          ? 'YouTube Music is temporarily unavailable. Could not load artist details.'
+          : (err.message || 'Failed to load artist');
+        setErrorInfo({ message: msg, retryable: isUpstream });
       });
-
-    return () => {
-      isMounted = false;
-    };
   }, [artistId]);
+
+  useEffect(() => {
+    loadArtistData();
+  }, [loadArtistData]);
+
+  const loadAllArtistSongs = useCallback(() => {
+    if (allSongs.length > 0) {
+      setShowAllSongs(true);
+      return;
+    }
+    setLoadingAllSongs(true);
+    setAllSongsError(null);
+    setShowAllSongs(true);
+
+    fetchArtistSongs(artistId)
+      .then((res) => {
+        const tracksList = Array.isArray(res) ? res : (res as PaginatedArtistSongs).tracks;
+        setAllSongs(tracksList || []);
+        setLoadingAllSongs(false);
+      })
+      .catch((err: any) => {
+        setLoadingAllSongs(false);
+        setAllSongsError(err.message || 'Failed to load full songs catalogue');
+      });
+  }, [artistId, allSongs.length]);
 
   if (loading) {
     return (
@@ -48,16 +75,35 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
     );
   }
 
-  if (error || !artist) {
+  if (errorInfo || !artist) {
     return (
       <div className="py-24 text-center max-w-md mx-auto text-neutral-400 space-y-4">
-        <p className="text-sm text-red-400">{error || 'Artist not found'}</p>
-        <button
-          onClick={() => setActiveView({ type: 'home' })}
-          className="px-4 py-2 rounded-xl glass-button text-xs font-semibold text-white"
-        >
-          Return Home
-        </button>
+        <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mx-auto">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-white mb-1">Unable to Load Artist</h3>
+          <p className="text-xs text-neutral-300 leading-relaxed">
+            {errorInfo?.message || 'Artist not found on YouTube Music.'}
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          {errorInfo?.retryable && (
+            <button
+              onClick={loadArtistData}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl glass-button text-xs font-semibold text-white"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
+          )}
+          <button
+            onClick={() => setActiveView({ type: 'home' })}
+            className="px-4 py-2 rounded-xl glass-panel text-xs font-medium text-neutral-400 hover:text-white"
+          >
+            Return Home
+          </button>
+        </div>
       </div>
     );
   }
@@ -73,6 +119,8 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
       playSong(topSongs[0], topSongs);
     }
   };
+
+  const displayedSongs = showAllSongs && allSongs.length > 0 ? allSongs.slice(0, visibleCount) : topSongs.slice(0, 10);
 
   return (
     <div className="space-y-10 pb-36 animate-in fade-in duration-300">
@@ -133,22 +181,43 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
         </div>
       </div>
 
-      {/* Top Songs */}
-      {topSongs.length > 0 && (
-        <section className="space-y-4">
+      {/* Popular Tracks & All Songs */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Music className="w-5 h-5 text-purple-400" />
-            Popular Tracks
+            {showAllSongs ? `All Songs (${allSongs.length || 'Loading...'})` : 'Popular Tracks'}
           </h2>
 
+          {!showAllSongs && (
+            <button
+              onClick={loadAllArtistSongs}
+              className="text-xs font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              View Full Discography
+            </button>
+          )}
+        </div>
+
+        {loadingAllSongs && allSongs.length === 0 ? (
+          <div className="py-12 flex items-center justify-center text-neutral-400 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+            <span className="text-xs">Fetching all songs using continuation...</span>
+          </div>
+        ) : allSongsError ? (
+          <div className="p-4 rounded-xl glass-panel text-xs text-red-400 flex items-center justify-between">
+            <span>{allSongsError}</span>
+            <button onClick={loadAllArtistSongs} className="underline ml-2">Retry</button>
+          </div>
+        ) : (
           <div className="space-y-1.5">
-            {topSongs.slice(0, 10).map((track, idx) => (
+            {displayedSongs.map((track, idx) => (
               <div
-                key={track.videoId}
+                key={`${track.videoId}-${idx}`}
                 className="group flex items-center justify-between p-2.5 rounded-2xl hover:bg-white/10 transition-all border border-transparent hover:border-white/10"
               >
                 <div
-                  onClick={() => playSong(track, topSongs)}
+                  onClick={() => playSong(track, displayedSongs)}
                   className="flex items-center gap-4 overflow-hidden flex-1 cursor-pointer"
                 >
                   <span className="w-6 text-center text-xs font-semibold text-neutral-400 group-hover:hidden tabular-nums">
@@ -162,6 +231,7 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
                     src={track.thumbnail}
                     alt={track.title}
                     className="w-11 h-11 rounded-xl object-cover shrink-0 shadow-md bg-neutral-900"
+                    loading="lazy"
                   />
 
                   <div className="overflow-hidden flex-1">
@@ -169,7 +239,7 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
                       {track.title}
                     </h4>
                     <p className="text-xs text-neutral-400 truncate mt-0.5">
-                      {track.artist}
+                      {track.artist} {track.album ? `• ${track.album}` : ''}
                     </p>
                   </div>
                 </div>
@@ -189,8 +259,21 @@ export const ArtistView: React.FC<ArtistViewProps> = ({ artistId, setActiveView 
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+
+        {/* Load more button if full catalogue exceeds visible count */}
+        {showAllSongs && allSongs.length > visibleCount && (
+          <div className="text-center pt-3">
+            <button
+              onClick={() => setVisibleCount((prev) => prev + 30)}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl glass-button text-xs font-semibold text-white hover:bg-white/15"
+            >
+              <ChevronDown className="w-4 h-4" />
+              Load More Tracks ({allSongs.length - visibleCount} remaining)
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* Albums Shelf */}
       {artist.albums && artist.albums.length > 0 && (

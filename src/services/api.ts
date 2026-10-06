@@ -2,20 +2,51 @@ import { Track, Artist, Album, LyricsData, HomeSection, ArtistCard } from '../ty
 
 const API_BASE = '/api';
 
+export class ApiError extends Error {
+  code: string;
+  retryable: boolean;
+  status: number;
+
+  constructor(message: string, code: string = 'UNKNOWN_ERROR', retryable: boolean = false, status: number = 500) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+    this.retryable = retryable;
+    this.status = status;
+  }
+}
+
+async function handleResponse<T>(res: Response): Promise<T> {
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch {
+    // Non-JSON response
+  }
+
+  if (!res.ok || (json && json.success === false)) {
+    const errorMsg = json?.error || (res.status === 503 ? 'YouTube Music is temporarily unavailable' : `Request failed with status ${res.status}`);
+    const code = json?.code || (res.status === 503 ? 'UPSTREAM_UNAVAILABLE' : (res.status === 429 ? 'UPSTREAM_RATE_LIMIT' : 'HTTP_ERROR'));
+    const retryable = json?.retryable !== undefined ? json.retryable : (res.status >= 500 || res.status === 429);
+    throw new ApiError(errorMsg, code, retryable, res.status);
+  }
+
+  return json?.data !== undefined ? json.data : (json as T);
+}
+
+export async function fetchHealth(): Promise<{ success: boolean; backend: string; ytmusic: { status: string; error?: string } }> {
+  const res = await fetch(`${API_BASE}/health`);
+  return res.json();
+}
+
 export async function fetchHome(): Promise<HomeSection[]> {
   const res = await fetch(`${API_BASE}/home`);
-  if (!res.ok) throw new Error('Failed to load home music feed');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load home feed');
-  return json.data || [];
+  return handleResponse<HomeSection[]>(res);
 }
 
 export async function fetchTrending(): Promise<{ tracks: Track[]; artists: ArtistCard[] }> {
   const res = await fetch(`${API_BASE}/trending`);
-  if (!res.ok) throw new Error('Failed to load trending music');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load trending');
-  return json.data || { tracks: [], artists: [] };
+  return handleResponse<{ tracks: Track[]; artists: ArtistCard[] }>(res);
 }
 
 export interface SearchResults {
@@ -27,24 +58,18 @@ export interface SearchResults {
   videos: Track[];
 }
 
-export async function searchMusic(query: string, filter?: string): Promise<SearchResults> {
+export async function searchMusic(query: string, filter?: string, signal?: AbortSignal): Promise<SearchResults> {
   const params = new URLSearchParams({ q: query });
   if (filter && filter !== 'all') {
     params.set('filter', filter);
   }
-  const res = await fetch(`${API_BASE}/search?${params.toString()}`);
-  if (!res.ok) throw new Error('Search failed');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Search failed');
-  return json.data;
+  const res = await fetch(`${API_BASE}/search?${params.toString()}`, { signal });
+  return handleResponse<SearchResults>(res);
 }
 
 export async function fetchSongDetail(videoId: string): Promise<{ song: Track; lyricsId?: string; related: Track[] }> {
   const res = await fetch(`${API_BASE}/song/${videoId}`);
-  if (!res.ok) throw new Error('Failed to load song details');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load song details');
-  return json.data;
+  return handleResponse<{ song: Track; lyricsId?: string; related: Track[] }>(res);
 }
 
 export async function fetchLyrics(videoId: string, title?: string, artist?: string): Promise<LyricsData> {
@@ -54,39 +79,47 @@ export async function fetchLyrics(videoId: string, title?: string, artist?: stri
   const url = `${API_BASE}/song/${videoId}/lyrics${params.toString() ? '?' + params.toString() : ''}`;
   
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to load lyrics');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load lyrics');
-  return json.data;
+  return handleResponse<LyricsData>(res);
 }
 
 export async function fetchArtist(artistId: string): Promise<Artist> {
   const res = await fetch(`${API_BASE}/artist/${artistId}`);
-  if (!res.ok) throw new Error('Failed to load artist details');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load artist details');
-  return json.data;
+  return handleResponse<Artist>(res);
 }
 
-export async function fetchArtistSongs(artistId: string): Promise<Track[]> {
-  const res = await fetch(`${API_BASE}/artist/${artistId}/songs`);
-  if (!res.ok) throw new Error('Failed to load artist songs');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load artist songs');
-  return json.data || [];
+export interface PaginatedArtistSongs {
+  tracks: Track[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export async function fetchArtistSongs(
+  artistId: string,
+  page?: number,
+  limit?: number
+): Promise<Track[] | PaginatedArtistSongs> {
+  const params = new URLSearchParams();
+  if (page) params.set('page', String(page));
+  if (limit) params.set('limit', String(limit));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/artist/${artistId}/songs${query}`);
+  return handleResponse<Track[] | PaginatedArtistSongs>(res);
 }
 
 export async function fetchAlbum(albumId: string): Promise<Album> {
   const res = await fetch(`${API_BASE}/album/${albumId}`);
-  if (!res.ok) throw new Error('Failed to load album details');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to load album details');
-  return json.data;
+  return handleResponse<Album>(res);
 }
 
 export async function fetchRelatedSongs(videoId: string): Promise<Track[]> {
-  const res = await fetch(`${API_BASE}/related/${videoId}`);
-  if (!res.ok) return [];
-  const json = await res.json();
-  return json.data || [];
+  try {
+    const res = await fetch(`${API_BASE}/related/${videoId}`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data || [];
+  } catch {
+    return [];
+  }
 }
