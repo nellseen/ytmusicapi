@@ -120,7 +120,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ setActiveView }) => {
           <div className="w-16 h-16 rounded-3xl glass-panel flex items-center justify-center mx-auto text-purple-400">
             <SearchIcon className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-neutral-200">Search Sonora</h3>
+          <h3 className="text-lg font-bold text-neutral-200">Search NellSpotif</h3>
           <p className="text-xs text-neutral-400 leading-relaxed">
             Find any song, artist, album, or music video in real-time from YouTube Music.
           </p>

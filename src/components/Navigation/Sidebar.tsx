@@ -53,8 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-1.5">
-            Sonora
-            <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/70 tracking-wider">
+            NellSpotif
+            <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 tracking-wider">
               Music
             </span>
           </h1>

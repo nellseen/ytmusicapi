@@ -66,7 +66,7 @@ const MainLayout: React.FC = () => {
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-pink-500 flex items-center justify-center">
                 <Disc3 className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-base tracking-tight text-white">Sonora</span>
+              <span className="font-bold text-base tracking-tight text-white">NellSpotif</span>
             </div>
 
             {/* Quick search input trigger for desktop */}

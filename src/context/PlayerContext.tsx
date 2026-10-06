@@ -263,7 +263,7 @@ export const PlayerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       navigator.mediaSession.metadata = new window.MediaMetadata({
         title: currentSong.title,
         artist: currentSong.artist,
-        album: currentSong.album || 'Sonora Music',
+        album: currentSong.album || 'NellSpotif Music',
         artwork: [
           { src: currentSong.thumbnail, sizes: '512x512', type: 'image/jpeg' },
         ],

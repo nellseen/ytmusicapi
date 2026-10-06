@@ -1,6 +1,6 @@
-# Sonora Music - Full-Stack iOS Glassmorphism Music Web App
+# NellSpotif - Full-Stack iOS Glassmorphism Music Web App
 
-Sonora is a modern full-stack music streaming web application built with a premium iOS-inspired Glassmorphism user interface and powered by real YouTube Music data.
+NellSpotif is a modern full-stack music streaming web application built with a premium iOS-inspired Glassmorphism user interface and powered by real YouTube Music data.
 
 ## Features
 

@@ -38,7 +38,7 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[SERVER] Sonora Music App listening on port ${PORT}`);
+  console.log(`[SERVER] NellSpotif Music App listening on port ${PORT}`);
 });
 
 process.on('SIGINT', () => {

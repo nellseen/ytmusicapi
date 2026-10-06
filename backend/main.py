@@ -17,7 +17,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(message)s"
 )
-logger = logging.getLogger("sonora")
+logger = logging.getLogger("nellspotif")
 
 def log_info(msg: str):
     logger.info(f"[INFO] {msg}")
@@ -43,7 +43,7 @@ def log_error(msg: str):
 # -------------------------------------------------------------
 # APP INITIALIZATION
 # -------------------------------------------------------------
-app = FastAPI(title="Sonora Music API", version="1.0.0")
+app = FastAPI(title="NellSpotif Music API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -234,7 +234,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # -------------------------------------------------------------
 @app.get("/api/health")
 def health_check():
-    return {"success": True, "status": "online", "service": "Sonora Music API"}
+    return {"success": True, "status": "online", "service": "NellSpotif Music API"}
 
 # -------------------------------------------------------------
 # ROUTES: HOME & TRENDING
